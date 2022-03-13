@@ -1,6 +1,6 @@
 # IC_ABAW
 ![image](https://user-images.githubusercontent.com/48800547/158078670-d79283e9-5d9e-4f8b-9962-52bb089459c3.png)
-Single task on expression classification with PyTorch
+Single task on expression classification with PyTorch.
 
 # Usage
 ## Prepare the dataset
