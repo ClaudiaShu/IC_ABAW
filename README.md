@@ -14,12 +14,12 @@ Download tha ABAW data from https://ibug.doc.ic.ac.uk/resources/cvpr-2022-3rd-ab
     <th>Citation</th>
   </tr>
   <tr>
-    <td>Pretrained model on DFEW dataset</td>
+    <td>DFEW</td>
     <td>https://dfew-dataset.github.io/</td>
     <td><code itemprop="citation">https://dl.acm.org/doi/10.1145/3394171.3413620</code></td>
   </tr>
   <tr>
-    <td>Pretrained model with facial landmarks</td>
+    <td>HRNet</td>
     <td>https://github.com/vlad3996/HRNet-landmarks</td>
     <td><code itemprop="citation">https://arxiv.org/pdf/1908.07919.pdf</code></td>
   </tr>
