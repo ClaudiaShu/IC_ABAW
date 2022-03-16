@@ -3,6 +3,9 @@
 Single task on expression classification with PyTorch.
 
 # Usage
+## Requirements
+This code is tested with `Ubuntu16.04` `cuda 10.1`
+
 ## Prepare the dataset
 Download tha ABAW data from https://ibug.doc.ic.ac.uk/resources/cvpr-2022-3rd-abaw/ to your computer. In this code, all the file paths are written as absolute paths so please remember to redirect the files according to your configuraton.
 
