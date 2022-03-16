@@ -3,17 +3,15 @@ import torch.nn
 
 from models import *
 from utils import *
-
 import pickle
 import torchvision
 
-class BaselineHRNet(nn.Module):
+
+class BaselineCNN(nn.Module):
     def __init__(self, num_classes):
-        super(BaselineHRNet, self).__init__()
-        self.trunk1 = torchvision.models.shufflenet_v2_x0_5(pretrained=True)
-        self.trunk2 = torchvision.models.shufflenet_v2_x1_0(pretrained=True)
+        super(BaselineCNN, self).__init__()
         self.backbone = torchvision.models.resnet18(pretrained=True)
-        self.backbone.fc = nn.Identity()
+        # self.backbone.fc = nn.Identity()
 
         self.landmark = get_model_by_name('COFW', device='cuda')
 
@@ -26,6 +24,10 @@ class BaselineHRNet(nn.Module):
         self.fc2 = nn.Linear(in_features=2000, out_features=num_classes)
 
     def forward(self, x):
+        '''
+        :param x: bz, c, h, w
+        :return: classification result
+        '''
         out1 = self.backbone(x)
         lm = self.landmark(x)
         bz, nj, hm_h, hm_w = lm.shape # batchsize, num_joints
@@ -68,14 +70,6 @@ class BaseLineRNN(nn.Module):
         # self.modelr3d.fc = nn.Linear(in_features=512, out_features=num_classes, bias=True)
         self.backbone.fc = nn.Identity()  # 512
 
-        self.act = torch.nn.Sequential(
-            nn.BatchNorm1d(512),
-            nn.LeakyReLU()
-        )
-
-        # for i, p in enumerate(self.backbone.layer1.parameters()):
-        #     p.requires_grad = False
-
         # landmark
         self.landmark = get_model_by_name('COFW', device='cuda')
         for i, p in enumerate(self.landmark.parameters()):
@@ -113,7 +107,7 @@ class BaseLineRNN(nn.Module):
         :return: output
         '''
         x_rnn = x.permute(0, 2, 1, 3, 4)
-        out_rnn = self.act(self.backbone(x_rnn))
+        out_rnn = self.backbone(x_rnn)
 
         b, l, c, h, w = x.shape
         x_att = x.reshape(b * l, c, h, w)
@@ -122,15 +116,74 @@ class BaseLineRNN(nn.Module):
         out_att, _ = self.att(out_res, out_res, out_res)
         out_gru, _ = self.gru(out_att)
 
-        out_att = self.act(out_att[:, -1])
-        out_gru = self.act(out_gru[:, -1])
+        out_att = out_att[:, -1]
+        out_gru = out_gru[:, -1]
 
         out_lm = self.landmark(x[:, int(l / 2), :, :, :])
         bz, lm, ih, iw = out_lm.shape
         out_lm = out_lm.reshape(bz, lm * ih * iw)
-        out_lm = self.act(self.layer1(out_lm))
+        out_lm = self.layer1(out_lm)
 
         out = torch.cat([out_rnn, out_att, out_gru, out_lm], dim=1)
         out = self.layer2(out)
 
         return out
+
+
+class BaselineTRI(nn.Module):
+    def __init__(self, num_classes):
+        super(BaselineTRI, self).__init__()
+        self.backbone = torchvision.models.resnet18(pretrained=True)  # 512
+        self.backbone.fc = nn.Identity()
+        self.triplet = torch.load(
+            '/data/users/ys221/software/Hamlyn_ABAW/checkpoint/Mar/16_Mar_test_ex_best.pth')
+        for i, p in enumerate(self.triplet.parameters()):
+            if i < 3:
+                p.requires_grad = False
+
+        self.landmark = get_model_by_name('COFW', device='cuda')
+        for i, p in enumerate(self.landmark.parameters()):
+            p.requires_grad = False
+
+        self.layer = torch.nn.Sequential(
+            nn.Linear(in_features=29 * 28 * 28, out_features=1024),
+            nn.BatchNorm1d(1024, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
+            nn.ReLU(),
+            nn.Linear(in_features=1024, out_features=512),
+        )
+
+        self.seq = torch.nn.Sequential(
+            nn.Linear(in_features=1536, out_features=512),
+            nn.BatchNorm1d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
+            nn.GELU(),
+            nn.Dropout(0.5),
+            nn.Linear(in_features=512, out_features=num_classes)
+        )
+
+    def forward(self, x):
+        '''
+
+        :param x: bz, c, h, w
+        :return: output
+        '''
+        bk = self.backbone(x)
+        tr = self.triplet(x)
+        lm = self.landmark(x)
+        bz, nj, hm_h, hm_w = lm.shape  # batchsize, num_joints
+        lm = lm.reshape(bz, nj * hm_h * hm_w)
+        lm = self.layer(lm)
+
+        out = torch.cat([bk, tr, lm], dim=1)
+
+        return self.seq(out)
+
+
+class BaselineE(nn.Module):
+    def __init__(self):
+        super(BaselineE, self).__init__()
+        self.backbone = torchvision.models.resnet18(pretrained=True)
+        # self.backbone = densenet169(pretrained=True)
+        self.backbone.fc = nn.Identity()
+
+    def forward(self, x):
+        return self.backbone(x)
