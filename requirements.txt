@@ -1,0 +1,9 @@
+torch==1.7.1
+torchvision==0.8.0a0
+tqdm==4.62.3
+timm==0.5.4
+yacs==0.1.8
+sklearn
+pytorch-metric-learning
+
+
