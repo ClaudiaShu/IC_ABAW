@@ -10,26 +10,6 @@ from utils import *
 import pdb
 
 # data
-transform1 = transforms.Compose([
-    transforms.Resize([224, 224]),
-    transforms.ToTensor()])
-transform2 = transforms.Compose([
-    transforms.Resize([224, 224]),
-    transforms.RandomRotation(45),
-    transforms.RandomHorizontalFlip(),
-    transforms.ColorJitter(brightness=0.5, contrast=0.5, hue=0.5),
-    transforms.ToTensor()])
-transform3 = transforms.Compose([
-    transforms.Resize([224, 224]),
-    transforms.RandomRotation(10),
-    transforms.RandomHorizontalFlip(),
-    transforms.RandomVerticalFlip(),
-    transforms.RandomAffine(30),
-    transforms.GaussianBlur(3),
-    # transforms.RandomAutocontrast(),
-    transforms.ColorJitter(brightness=0.5, contrast=0.5, hue=0.5),
-    transforms.ToTensor()])
-
 train_transform = transforms.Compose([
     transforms.ToPILImage(),
     transforms.Resize(size=(112, 112)),
