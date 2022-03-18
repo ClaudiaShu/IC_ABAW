@@ -4,18 +4,13 @@ import random
 from torch.autograd import Variable
 import PIL.Image as Image
 import torch
-from sklearn.model_selection import GroupKFold
+from sklearn.model_selection import GroupKFold, KFold
 import numpy as np
 import pandas as pd
 import torch
 import cv2
 
 from tqdm import *
-
-def get_features(name):
-    def hook(model, input, output):
-        features[name] = output.detach()
-    return hook
 
 
 def seed_everything(seed=1):
@@ -116,30 +111,21 @@ def mixup_criterion(criterion, pred, y_a, y_b, lam):
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
 
-def creat_original_data(file_name):
+def create_original_data(file_name):
     list_csv = glob.glob(file_name)
     df = pd.DataFrame()
     for i in tqdm(list_csv, total=len(list_csv)):
         df = pd.concat((df, pd.read_csv(i)), axis=0).reset_index(drop=True)
-
     return df
 
 
-def creat_balance_data_ex(file_name):
+def create_balance_data_ex(file_name):
     list_csv = glob.glob(file_name)
 
     df = pd.DataFrame()
     for i in tqdm(list_csv):
         df = pd.concat((df, pd.read_csv(i, index_col=0)), axis=0).reset_index(drop=True)
-    # df2 = pd.read_csv('../data/labels_save/expression/train_7emotion.csv')
-    # df2.face_files = df2.face_files.apply(lambda x: '../data/' + x)
-    # categories = {'Neutral': 0, 'Angry': 1, 'Disgust': 2, 'Fear': 3, 'Happy': 4, 'Sad': 5, 'Surprise': 6}
-    # df2.emotion = df2.emotion.apply(lambda x: categories[x])
-    #
-    # df2 = df2.drop(columns=['video_name', 'frame_files'])
-    # df2 = df2.rename(columns={'face_files': 'image_id', 'emotion': 'labels_ex'})
-    #
-    # df3 = pd.concat([df, df2], axis=0)
+
     df3 = df
     # TODO maybe change the rate of sample
     weights = df3.labels_ex.value_counts().sort_values()[0] / df3.labels_ex.value_counts().sort_values()
@@ -221,6 +207,33 @@ def ex_weight(labels_ex):
     return torch.as_tensor(weight, dtype=torch.float)
 
 
+def split_csv_data(file1, file2, number_fold):
+    if file2 is not None:
+        list_csv1 = glob.glob(file1)
+        list_csv2 = glob.glob(file2)
+        list_csv = list_csv1 + list_csv2
+    else:
+        list_csv = glob.glob(file1)
+
+    kf = KFold(n_splits=number_fold)
+    csv_train = {}
+    csv_valid = {}
+
+    for fold, (train_index, valid_index) in enumerate(kf.split(list_csv)):
+        df_train = pd.DataFrame()
+        for i in tqdm(train_index, total=len(train_index)):
+            df_train = pd.concat((df_train, pd.read_csv(list_csv[i])), axis=0).reset_index(drop=True)
+
+        df_valid = pd.DataFrame()
+        for j in tqdm(valid_index, total=len(valid_index)):
+            df_valid = pd.concat((df_valid, pd.read_csv(list_csv[j])), axis=0).reset_index(drop=True)
+
+        csv_train[fold] = df_train
+        csv_valid[fold] = df_valid
+
+    return csv_train, csv_valid
+
+
 def split_data(df_data1, df_data2, number_fold):
     if df_data2 is not None:
         df_data1 = pd.read_csv(df_data1, index_col=False)
@@ -231,12 +244,12 @@ def split_data(df_data1, df_data2, number_fold):
 
     kf = GroupKFold(n_splits=number_fold)
     df_train = {}
-    df_split = {}
-    for fold, (train_index, test_index) in enumerate(kf.split(data, data, data.iloc[:, 0])):
+    df_valid = {}
+    for fold, (train_index, valid_index) in enumerate(kf.split(data, data, data.iloc[:, 0])):
         df_train[fold] = data.iloc[train_index].reset_index(drop=True)
-        df_split[fold] = data.iloc[test_index].reset_index(drop=True)
+        df_valid[fold] = data.iloc[valid_index].reset_index(drop=True)
 
-    return df_train, df_split
+    return df_train, df_valid
 
 
 def Val_acc(loader, Dis, criterion, device):
@@ -331,6 +344,9 @@ def del_extra_keys(model_par_dir):
         if key.endswith(('running_mean', 'running_var')):
             del model_par_dict[key]
     return model_par_dict
+
+
+
 
 
 
