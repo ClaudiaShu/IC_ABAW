@@ -5,38 +5,38 @@ import torch
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
-
+from PIL import Image
 from utils import *
 import pdb
 
 # data
 train_transform = transforms.Compose([
-    transforms.ToPILImage(),
+    # transforms.ToPILImage(),
     transforms.Resize(size=(112, 112)),
     transforms.RandomHorizontalFlip(),
     transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4),
-    transforms.GaussianBlur(3), # add
+    # transforms.GaussianBlur(3), # add
     transforms.ToTensor(),
     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
 test_transform = transforms.Compose([
-    transforms.ToPILImage(),
+    # transforms.ToPILImage(),
     transforms.Resize(size=(112, 112)),
     transforms.ToTensor(),
     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
 
-train_transform_CYC = transforms.Compose([
-    transforms.ToPILImage(),
-    transforms.Resize(size=(64, 64)),
-    transforms.RandomHorizontalFlip(),
-    transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4),
-    transforms.GaussianBlur(3), # add
-    transforms.ToTensor(),
-    transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
-test_transform_CYC = transforms.Compose([
-    transforms.ToPILImage(),
-    transforms.Resize(size=(64, 64)),
-    transforms.ToTensor(),
-    transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
+# train_transform_CYC = transforms.Compose([
+#     transforms.ToPILImage(),
+#     transforms.Resize(size=(64, 64)),
+#     transforms.RandomHorizontalFlip(),
+#     transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4),
+#     # transforms.GaussianBlur(3), # add
+#     transforms.ToTensor(),
+#     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
+# test_transform_CYC = transforms.Compose([
+#     transforms.ToPILImage(),
+#     transforms.Resize(size=(64, 64)),
+#     transforms.ToTensor(),
+#     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
 
 
 class Aff2_Dataset_static_shuffle(Dataset):
@@ -70,7 +70,8 @@ class Aff2_Dataset_static_shuffle(Dataset):
         else:
             label = ast.literal_eval(self.list_labels_va[index])
             # label = (label+1)/2.0
-        image = cv2.imread(self.list_image_id[index])[..., ::-1]
+        # image = cv2.imread(self.list_image_id[index])[..., ::-1]
+        image = Image.open(self.list_image_id[index]).convert('RGB')
         sample = {
             'images': self.transform(image),
             'labels': torch.tensor(label)
@@ -118,7 +119,8 @@ class Aff2_Dataset_series_shuffle(Dataset):
                 label = ast.literal_eval(self.list_labels_va[index])
                 # label = (label+1)/2.0
 
-            image = cv2.imread(self.list_image_id[i])[..., ::-1]
+            # image = cv2.imread(self.list_image_id[i])[..., ::-1]
+            image = Image.open(self.list_image_id[index]).convert('RGB')
             images.append(self.transform(image))
             labels.append(label)
         # import pdb; pdb.set_trace()
@@ -138,9 +140,10 @@ class Aff2_Dataset_series_shuffle(Dataset):
         return len(self.df) // self.length
 
 
-class Aff2_Dataset_static_facemask(Dataset):
-    def __init__(self, root, transform, type_partition, df=None):
-        super(Aff2_Dataset_static_facemask, self).__init__()
+class Aff2_Dataset_test(Dataset):
+    def __init__(self, root, transform, df=None):
+        super(Aff2_Dataset_test, self).__init__()
+
         if root:
             self.list_csv = glob.glob(root + '*')
             # self.list_csv = [i for i in self.list_csv if len(pd.read_csv(i)) != 0]
@@ -151,35 +154,23 @@ class Aff2_Dataset_static_facemask(Dataset):
         else:
             self.df = df
         self.transform = transform
-        self.type_partition = type_partition
-        if self.type_partition == 'ex':
-            self.list_labels_ex = np.array(self.df['labels_ex'].values)
-        elif self.type_partition == 'au':
-            self.list_labels_au = np.array(self.df['labels_au'].values)
-        else:
-            self.list_labels_va = np.array(self.df['labels_va'].values)
 
         self.list_image_id = np.array(self.df['image_id'].values)
+        txt_file = '/data/users/ys221/data/ABAW/test/test.txt'
+        self.list_txt = read_txt(txt_file)
 
     def __getitem__(self, index):
-        if self.type_partition == 'ex':
-            label = self.list_labels_ex[index]
-        elif self.type_partition == 'au':
-            label = ast.literal_eval(self.list_labels_au[index])
-        else:
-            label = ast.literal_eval(self.list_labels_va[index])
-            # label = (label+1)/2.0
-
-        image = cv2.imread(self.list_image_id[index])[..., ::-1]
-        dir = '/data/users/ys221/data/ABAW/facemasks'
-        video = self.list_image_id[index].split('/')[6]
-        frame = self.list_image_id[index].split('/')[7]
-        facemask = cv2.imread(os.path.join(dir, video, frame), cv2.IMREAD_GRAYSCALE)[..., ::-1]
+        # image = cv2.imread(self.list_image_id[index])[..., ::-1]
+        image = Image.open(self.list_image_id[index]).convert('RGB')
+        path = self.list_image_id[index]
+        image_id = int(path.split('/')[-1].split('.')[0])
+        video = path.split('/')[-2]
+        video_id = self.list_txt.index(video)  # (0-227)
 
         sample = {
             'images': self.transform(image),
-            'masks': torch.tensor(facemask),
-            'labels': torch.tensor(label)
+            'image_id': torch.tensor(image_id),
+            'video_id': torch.tensor(video_id)
         }
         return sample
 
