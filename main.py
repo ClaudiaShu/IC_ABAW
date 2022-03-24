@@ -2,7 +2,7 @@ import argparse
 import warnings
 import logging
 import torch.optim
-from torch.optim.lr_scheduler import CosineAnnealingLR, ExponentialLR, MultiStepLR, CosineAnnealingWarmRestarts
+from torch.optim.lr_scheduler import CosineAnnealingLR, ExponentialLR, MultiStepLR, CosineAnnealingWarmRestarts, StepLR
 from pytorch_metric_learning import distances, losses, miners, reducers, testers
 import pytorch_warmup as warmup
 from sklearn.metrics import confusion_matrix, classification_report
@@ -20,12 +20,11 @@ warnings.filterwarnings("ignore")
 
 device = "cuda:0" if torch.cuda.is_available() else 'cpu'
 
-
 def args_config():
     parser = argparse.ArgumentParser(description='EXP Training')
     parser.add_argument('--lr', default=1e-2, type=float, help='learning rate')  # 1e-3#
-    parser.add_argument('--batch_size', default=128, type=int, help='batch size')  # 256#
-    parser.add_argument('--num_epochs', default=10, type=int, help='number epochs')  # 12#
+    parser.add_argument('--batch_size', default=64, type=int, help='batch size')  # 256#
+    parser.add_argument('--num_epochs', default=5, type=int, help='number epochs')  # 12#
     parser.add_argument('--num_classes', default=8, type=int, help='number classes')
     parser.add_argument('--weight_decay', default=5e-4, type=float)  # 5e-4#
     parser.add_argument('--seq_len', default=5, type=int)
@@ -47,7 +46,7 @@ def args_config():
     parser.add_argument('--resume', type=bool, default=False)
 
     parser.add_argument('--loss', type=str, default='CrossEntropyLabelAwareSmooth')  #['CrossEntropyLabelAwareSmooth','SuperContrastive']
-    parser.add_argument('--warmup', type=bool, default=True)
+    parser.add_argument('--warmup', type=bool, default=False)
     parser.add_argument('--optim', type=str, default='SGD')
 
     args = parser.parse_args()
@@ -397,9 +396,9 @@ def setup(df_train, df_valid, args):
         model = BaselineRES_M(num_classes=args.num_classes)
     elif args.net == "INC_M":
         model = BaselineINC_M(num_classes=args.num_classes)
-    elif args.net == "RES_T": # tri
+    elif args.net == "RES_T":  # tri
         model = BaselineRES_T(num_classes=args.num_classes)
-    elif args.net == "INC_T": # tri
+    elif args.net == "INC_T":  # tri
         model = BaselineINC_T(num_classes=args.num_classes)
     else:
         model = Baseline(num_classes=args.num_classes)
@@ -458,6 +457,7 @@ if __name__ == '__main__':
     else:
         optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, momentum=0.9)
         scheduler = CosineAnnealingLR(optimizer=optimizer, T_max=num_steps, eta_min=1e-6, last_epoch=-1)
+        # scheduler = StepLR(optimizer=optimizer, step_size=len(train_loader), gamma=0.5, last_epoch=-1)
         # scheduler = CosineAnnealingWarmRestarts(optimizer=optimizer, T_0=len(train_loader), T_mult=2, eta_min=0, last_epoch=-1)
 
     optimizer.zero_grad()
