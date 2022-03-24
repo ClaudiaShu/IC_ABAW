@@ -38,7 +38,7 @@ python create_table_data.py
 python main.py \
   --lr=1e-2 \
   --batch_size=64 \
-  --net='RNN' \
+  --net='RES' \
   --sample='ori' \
   --resume=False
 ```
