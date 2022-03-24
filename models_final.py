@@ -38,12 +38,14 @@ class Baseline(nn.Module):
     def __init__(self, num_classes):
         super(Baseline, self).__init__()
         self.backbone = torchvision.models.densenet169(pretrained=True).cuda()
-        in_features = self.backbone.fc.in_features
-        self.backbone.fc = nn.Linear(in_features=in_features, out_features=num_classes)
+        in_features = self.backbone.classifier.in_features
+        self.backbone.classifier = nn.Identity()
+        self.out = MLP([in_features, 512, num_classes], drop_out=0.5)  # class
+        # self.backbone.classifier = nn.Linear(in_features=in_features, out_features=num_classes)
 
     def forward(self, x):
         out = self.backbone(x)
-        return out
+        return self.out(out)
 
 # Baseline
 class BaselineRES(nn.Module):
