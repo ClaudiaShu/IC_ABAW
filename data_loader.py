@@ -24,19 +24,19 @@ test_transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
 
-# train_transform_CYC = transforms.Compose([
-#     transforms.ToPILImage(),
-#     transforms.Resize(size=(64, 64)),
-#     transforms.RandomHorizontalFlip(),
-#     transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4),
-#     # transforms.GaussianBlur(3), # add
-#     transforms.ToTensor(),
-#     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
-# test_transform_CYC = transforms.Compose([
-#     transforms.ToPILImage(),
-#     transforms.Resize(size=(64, 64)),
-#     transforms.ToTensor(),
-#     transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
+train_transform2 = transforms.Compose([
+    # transforms.ToPILImage(),
+    transforms.Resize(size=(224, 224)),
+    transforms.RandomHorizontalFlip(),
+    transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4),
+    # transforms.GaussianBlur(3), # add
+    transforms.ToTensor(),
+    transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
+test_transform2 = transforms.Compose([
+    # transforms.ToPILImage(),
+    transforms.Resize(size=(224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
 
 
 class Aff2_Dataset_static_shuffle(Dataset):
@@ -141,36 +141,22 @@ class Aff2_Dataset_series_shuffle(Dataset):
 
 
 class Aff2_Dataset_test(Dataset):
-    def __init__(self, root, transform, df=None):
+    def __init__(self, csv, transform):
         super(Aff2_Dataset_test, self).__init__()
+        self.df = pd.read_csv(csv)
 
-        if root:
-            self.list_csv = glob.glob(root + '*')
-            # self.list_csv = [i for i in self.list_csv if len(pd.read_csv(i)) != 0]
-            self.df = pd.DataFrame()
-
-            for i in tqdm(self.list_csv, total=len(self.list_csv)):
-                self.df = pd.concat((self.df, pd.read_csv(i)), axis=0).reset_index(drop=True)
-        else:
-            self.df = df
         self.transform = transform
 
         self.list_image_id = np.array(self.df['image_id'].values)
-        txt_file = '/data/users/ys221/data/ABAW/test/test.txt'
-        self.list_txt = read_txt(txt_file)
+        # txt_file = '/data/users/ys221/data/ABAW/test/test.txt'
+        # self.list_txt = read_txt(txt_file)
 
     def __getitem__(self, index):
         # image = cv2.imread(self.list_image_id[index])[..., ::-1]
         image = Image.open(self.list_image_id[index]).convert('RGB')
-        path = self.list_image_id[index]
-        image_id = int(path.split('/')[-1].split('.')[0])
-        video = path.split('/')[-2]
-        video_id = self.list_txt.index(video)  # (0-227)
 
         sample = {
-            'images': self.transform(image),
-            'image_id': torch.tensor(image_id),
-            'video_id': torch.tensor(video_id)
+            'images': self.transform(image)
         }
         return sample
 
