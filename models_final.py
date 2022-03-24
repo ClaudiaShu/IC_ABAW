@@ -210,15 +210,16 @@ class BaselineRES_M(nn.Module):
         self.backbone.fc = nn.Identity()
 
         # branch 2
-        self.landmark = get_model_by_name('COFW', device='cuda')
+        # self.landmark = get_model_by_name('COFW', device='cuda')  # 29
+        self.landmark = get_model_by_name('WFLW', device='cuda')  #  98
         # self.landmark = self.landmark.eval()
 
         # self.mlp21 = MLP([29 * 3, 512, 256, 128], final_relu=True).cuda()  # feature 2
-        self.mlp21 = nn.Sequential(nn.Linear(29 * 3, 512), nn.BatchNorm1d(512), nn.ReLU(),
+        self.mlp21 = nn.Sequential(nn.Linear(98 * 3, 512), nn.BatchNorm1d(512), nn.ReLU(),
                                    nn.Linear(512, 256), nn.BatchNorm1d(256), nn.ReLU(),
                                    nn.Linear(256, 128), nn.BatchNorm1d(128), nn.ReLU()).cuda()
 
-        self.out = MLP([in_features + 128, 1024, num_classes], drop_out=0.5)  # class
+        self.out = MLP([in_features + 128, 1024, num_classes], drop_out=0.4)  # class
 
     def forward(self, x):
         '''
@@ -263,7 +264,7 @@ class BaselineINC_M(nn.Module):
                                    nn.Linear(512, 256), nn.BatchNorm1d(256), nn.ReLU(),
                                    nn.Linear(256, 128), nn.BatchNorm1d(128), nn.ReLU()).cuda()
 
-        self.out = MLP([in_features + 128, 1024, num_classes], drop_out=0.5)  # class
+        self.out = MLP([in_features + 128, 1024, num_classes], drop_out=0.4)  # class
 
     def forward(self, x):
         '''
@@ -313,7 +314,7 @@ class BaselineRES_T(nn.Module):
         #         p.eval()
 
         # self.mlp21 = MLP([29*3, 512, 256, 128], final_relu=True).cuda()  # feature 2
-        self.mlp21 = nn.Sequential(nn.Linear(29 * 3, 512), nn.BatchNorm1d(512), nn.ReLU(),
+        self.mlp21 = nn.Sequential(nn.Linear(29 * 2, 512), nn.BatchNorm1d(512), nn.ReLU(),
                                    nn.Linear(512, 256), nn.BatchNorm1d(256), nn.ReLU(),
                                    nn.Linear(256, 128), nn.BatchNorm1d(128), nn.ReLU()).cuda()
         self.mlp22 = MLP([128, 128], final_relu=True).cuda()  # emb2
@@ -343,7 +344,8 @@ class BaselineRES_T(nn.Module):
         max_h = (max_indices / hm_w).to(torch.int).to(torch.float32)
         max_w = max_indices % hm_w
 
-        lm = torch.stack((max_h/hm_h, max_w/hm_w, max_c), -1).reshape(bz, nj*3)
+        # lm = torch.stack((max_h/hm_h, max_w/hm_w, max_c), -1).reshape(bz, nj*3)
+        lm = torch.stack((max_h / hm_h, max_w / hm_w), -1).reshape(bz, nj * 2)
         # fea_lm = F.softmax(fea_lm, dim=-1)
 
         lm = self.mlp21(lm)  # feature 2
@@ -421,11 +423,11 @@ class BaselineINC_T(nn.Module):
 
 
 # Recurrent
-class BaseLineRNN(nn.Module):
+class BaselineRNN(nn.Module):
     def __init__(self, num_classes=8, module='R3D', n_features=512,
                  hidden_size=512, num_layers=2, drop_gru=0.4,
                  embed_dim=512, num_heads=2, drop_att=0.7):
-        super(BaseLineRNN, self).__init__()
+        super(BaselineRNN, self).__init__()
         '''
         r3d_18 & mc3_18: 
         pretrained (bool): If True, returns a model pre-trained on Kinetics-400
@@ -464,19 +466,11 @@ class BaseLineRNN(nn.Module):
         self.gru = nn.GRU(input_size=n_features, hidden_size=hidden_size, bidirectional=False, batch_first=True,
                           dropout=drop_gru, num_layers=num_layers)
 
-        self.layer1 = torch.nn.Sequential(
-            nn.Linear(in_features=29 * 28 * 28, out_features=1024),
-            nn.BatchNorm1d(1024, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
-            nn.ReLU(),
-            nn.Linear(in_features=1024, out_features=512)
-        )
+        self.mlp_lm = nn.Sequential(nn.Linear(29 * 3, 512), nn.BatchNorm1d(512), nn.ReLU(),
+                                   nn.Linear(512, 256), nn.BatchNorm1d(256), nn.ReLU(),
+                                   nn.Linear(256, 128), nn.BatchNorm1d(128), nn.ReLU()).cuda()
 
-        self.layer2 = torch.nn.Sequential(
-            nn.Linear(in_features=2048, out_features=512),
-            nn.BatchNorm1d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True),
-            nn.Dropout(0.5),
-            nn.Linear(in_features=512, out_features=num_classes)
-        )
+        self.out = MLP([512*3 + 128, 1024, num_classes], drop_out=0.5)  # class
 
     def forward(self, x):
         '''
@@ -500,13 +494,41 @@ class BaseLineRNN(nn.Module):
         out_att = out_att[:, -1]
         out_gru = out_gru[:, -1]
 
-        out_lm = self.landmark(x[:, int(l / 2), :, :, :])
-        bz, lm, ih, iw = out_lm.shape
-        out_lm = out_lm.reshape(bz, lm * ih * iw)
-        out_lm = self.layer1(out_lm)
+        lm = self.landmark(x[:, int(l / 2), :, :, :])
+        bz, nj, hm_h, hm_w = lm.shape  # batchsize, num_joints
+        fea_lm = lm.reshape(bz * nj, hm_h * hm_w)
+        (max_c, max_indices) = torch.max(fea_lm, dim=1)
+        max_h = (max_indices / hm_w).to(torch.int).to(torch.float32)
+        max_w = max_indices % hm_w
+        lm = torch.stack((max_h / hm_h, max_w / hm_w, max_c), -1).reshape(bz, nj * 3)
+        out_lm = self.mlp_lm(lm)  # feature 2
 
         out = torch.cat([out_rnn, out_att, out_gru, out_lm], dim=1)
         out = self.layer2(out)
 
         return out
+
+
+class BaselineRES_test(nn.Module):
+    def __init__(self, num_classes=8, emb_size=512):
+        super(BaselineRES_test, self).__init__()
+        weight = '/data/users/ys221/data/pretrain/Resnet50/resnet50_ft_weight.pkl'
+        self.backbone = resnet50()
+        load_state_dict(self.backbone, weight)
+        in_features = self.backbone.fc.in_features  # 2048
+        # self.backbone.avgpool = nn.Identity()
+        self.backbone.fc = nn.Identity()
+        # self.backbone.fc = nn.Linear(in_features=in_features, out_features=num_classes)
+
+        self.emb = MLP([in_features, emb_size], final_relu=True).cuda()  # emb
+        self.out = MLP([in_features, 1024, num_classes], drop_out=0.5)  # class
+
+    def forward(self, x):
+        fea = self.backbone(x)
+        # print(fea.shape)
+        emb = self.emb(fea)
+        out = self.out(fea)
+
+        return out
+
 
